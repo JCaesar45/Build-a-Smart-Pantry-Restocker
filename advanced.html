@@ -1,0 +1,1040 @@
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Pantry Restocker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-card: #1a1a24;
+      --bg-input: #0f0f16;
+      --accent: #e8c547;
+      --accent-glow: rgba(232, 197, 71, 0.15);
+      --accent-dim: rgba(232, 197, 71, 0.4);
+      --text-primary: #f0f0f5;
+      --text-secondary: #8a8a9a;
+      --text-muted: #5a5a6a;
+      --border: #2a2a35;
+      --border-focus: #3a3a4a;
+      --discard: #e85c47;
+      --discard-bg: rgba(232, 92, 71, 0.08);
+      --restock: #47c9e8;
+      --restock-bg: rgba(71, 201, 232, 0.08);
+      --donate: #47e88a;
+      --donate-bg: rgba(71, 232, 138, 0.08);
+      --general: #a78bfa;
+      --fridge: #60a5fa;
+      --pantry: #fbbf24;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Ambient background */
+    .ambient-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .ambient-bg::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background:
+        radial-gradient(ellipse at 20% 20%, rgba(232, 197, 71, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(71, 201, 232, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(232, 197, 71, 0.01) 0%, transparent 70%);
+      animation: ambientDrift 30s ease-in-out infinite;
+    }
+
+    @keyframes ambientDrift {
+
+      0%,
+      100% {
+        transform: translate(0, 0) rotate(0deg);
+      }
+
+      33% {
+        transform: translate(2%, 1%) rotate(1deg);
+      }
+
+      66% {
+        transform: translate(-1%, 2%) rotate(-1deg);
+      }
+    }
+
+    /* Grid overlay */
+    .grid-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image:
+        linear-gradient(rgba(232, 197, 71, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232, 197, 71, 0.02) 1px, transparent 1px);
+      background-size: 60px 60px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Main layout */
+    .app {
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      padding: 4rem 0 3rem;
+      position: relative;
+    }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1.25rem;
+      background: var(--accent-bg);
+      border: 1px solid var(--accent-dim);
+      border-radius: 100px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1.5rem;
+      animation: badgePulse 3s ease-in-out infinite;
+    }
+
+    @keyframes badgePulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 var(--accent-glow);
+      }
+
+      50% {
+        box-shadow: 0 0 20px 4px var(--accent-glow);
+      }
+    }
+
+    .header h1 {
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header p {
+      font-size: 1.125rem;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    /* Stats bar */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-focus);
+      transform: translateY(-2px);
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--accent);
+      opacity: 0.6;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Main grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 900px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Panel */
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .panel:hover {
+      border-color: var(--border-focus);
+    }
+
+    .panel-header {
+      padding: 1.5rem 1.5rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .panel-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+
+    .panel-body {
+      padding: 1.5rem;
+    }
+
+    /* Textarea */
+    .code-input {
+      width: 100%;
+      min-height: 280px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+      line-height: 1.7;
+      color: var(--text-primary);
+      resize: vertical;
+      transition: all 0.3s ease;
+      outline: none;
+    }
+
+    .code-input:focus {
+      border-color: var(--accent-dim);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .code-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.75rem;
+      border-radius: 12px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+      outline: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg-primary);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(232, 197, 71, 0.3);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--border-focus);
+      color: var(--text-primary);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    /* Action cards */
+    .actions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .action-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.25rem;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      animation: cardSlideIn 0.4s ease forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    @keyframes cardSlideIn {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .action-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--border-focus);
+    }
+
+    .action-card.discard {
+      border-left: 3px solid var(--discard);
+    }
+
+    .action-card.restock {
+      border-left: 3px solid var(--restock);
+    }
+
+    .action-card.donate {
+      border-left: 3px solid var(--donate);
+    }
+
+    .action-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 100px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+
+    .action-badge.discard {
+      background: var(--discard-bg);
+      color: var(--discard);
+    }
+
+    .action-badge.restock {
+      background: var(--restock-bg);
+      color: var(--restock);
+    }
+
+    .action-badge.donate {
+      background: var(--donate-bg);
+      color: var(--donate);
+    }
+
+    .action-sku {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .action-name {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .action-meta {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    .action-meta span {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    /* Zone groups */
+    .zone-section {
+      margin-top: 2rem;
+    }
+
+    .zone-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .zone-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .zone-dot.general {
+      background: var(--general);
+    }
+
+    .zone-dot.fridge {
+      background: var(--fridge);
+    }
+
+    .zone-dot.pantry {
+      background: var(--pantry);
+    }
+
+    .zone-name {
+      font-size: 1rem;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .zone-count {
+      margin-left: auto;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Console output */
+    .console-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      margin-top: 2rem;
+    }
+
+    .console-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem 1.5rem;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .console-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .console-dot.red {
+      background: #e85c47;
+    }
+
+    .console-dot.yellow {
+      background: #e8c547;
+    }
+
+    .console-dot.green {
+      background: #47e88a;
+    }
+
+    .console-title {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-left: 0.5rem;
+    }
+
+    .console-body {
+      padding: 1.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8125rem;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .console-body pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .console-body .log-time {
+      color: var(--text-muted);
+    }
+
+    .console-body .log-info {
+      color: var(--restock);
+    }
+
+    .console-body .log-warn {
+      color: var(--accent);
+    }
+
+    .console-body .log-error {
+      color: var(--discard);
+    }
+
+    /* Terminal cursor blink */
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1.2em;
+      background: var(--accent);
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      50% {
+        opacity: 0;
+      }
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state svg {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 1.5rem;
+      opacity: 0.3;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--border-focus);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .app {
+        padding: 1rem;
+      }
+
+      .header {
+        padding: 2rem 0;
+      }
+
+      .stats-bar {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    /* Particle canvas */
+    #particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="particles"></canvas>
+  <div class="ambient-bg"></div>
+  <div class="grid-overlay"></div>
+
+  <div class="app">
+    <header class="header">
+      <div class="header-badge">
+        <span>&#9679;</span>
+        <span>Inventory Intelligence</span>
+      </div>
+      <h1>Smart Pantry Restocker</h1>
+      <p>Parse shipments, plan restocks, and organize your pantry with surgical precision. Every item tracked. Every zone optimized.</p>
+    </header>
+
+    <div class="stats-bar" id="statsBar">
+      <div class="stat-card">
+        <div class="stat-label">Total Items</div>
+        <div class="stat-value" id="statTotal">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Restock</div>
+        <div class="stat-value" id="statRestock" style="color: var(--restock);">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Donate</div>
+        <div class="stat-value" id="statDonate" style="color: var(--donate);">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Discard</div>
+        <div class="stat-value" id="statDiscard" style="color: var(--discard);">0</div>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon" style="background: rgba(232,197,71,0.1); color: var(--accent);">&#128230;</div>
+            Incoming Shipment
+          </div>
+        </div>
+        <div class="panel-body">
+          <textarea class="code-input" id="shipmentInput" placeholder="A10|Tomatoes|5|2027-01-01&#10;B21|Bananas|10|2027-01-01|fridge&#10;C32|Eggs|3|2027-01-01|pantry&#10;D45|Expired Beans|0|2020-01-01|pantry&#10;A10|Duplicate|99|2027-12-31|fridge">A10|Tomatoes|5|2027-01-01
+B21|Bananas|10|2027-01-01|fridge
+C32|Eggs|3|2027-01-01|pantry
+D45|Expired Beans|0|2020-01-01|pantry
+A10|Duplicate Tomatoes|99|2027-12-31|fridge</textarea>
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="processShipment()">
+              <span>&#9654;</span> Process Shipment
+            </button>
+            <button class="btn btn-secondary" onclick="loadDemo()">
+              <span>&#8634;</span> Load Demo
+            </button>
+            <button class="btn btn-secondary" onclick="clearAll()">
+              <span>&#10006;</span> Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon" style="background: rgba(71,201,232,0.1); color: var(--restock);">&#128218;</div>
+            Current Pantry
+          </div>
+        </div>
+        <div class="panel-body">
+          <textarea class="code-input" id="pantryInput" placeholder="JSON array of pantry items...">[
+  { "sku": "A10", "name": "Tomatoes", "qty": 2, "expires": "2026-06-01", "zone": "general" },
+  { "sku": "E99", "name": "Rice", "qty": 10, "expires": "2028-01-01", "zone": "pantry" }
+]</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="resultsPanel" style="display: none;">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-icon" style="background: rgba(71,232,138,0.1); color: var(--donate);">&#128200;</div>
+          Action Plan
+        </div>
+      </div>
+      <div class="panel-body" id="resultsBody"></div>
+    </div>
+
+    <div class="console-panel">
+      <div class="console-header">
+        <div class="console-dot red"></div>
+        <div class="console-dot yellow"></div>
+        <div class="console-dot green"></div>
+        <span class="console-title">System Console</span>
+      </div>
+      <div class="console-body" id="consoleBody">
+        <pre><span class="log-time">[15:34:02]</span> <span class="log-info">System initialized. Ready for shipment processing.</span>
+<span class="log-time">[15:34:02]</span> <span class="log-warn">Waiting for input...</span><span class="cursor"></span></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // === Particle System ===
+    const canvas = document.getElementById('particles');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    let mouseX = 0,
+      mouseY = 0;
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    class Particle {
+      constructor() {
+        this.reset();
+      }
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 0.3;
+        this.vy = (Math.random() - 0.5) * 0.3;
+        this.size = Math.random() * 2 + 0.5;
+        this.alpha = Math.random() * 0.3 + 0.1;
+        this.life = Math.random() * 100 + 100;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life--;
+        const dx = mouseX - this.x;
+        const dy = mouseY - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 150) {
+          this.vx += dx * 0.0001;
+          this.vy += dy * 0.0001;
+        }
+        if (this.life <= 0 || this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+          this.reset();
+        }
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(232, 197, 71, ${this.alpha})`;
+        ctx.fill();
+      }
+    }
+    for (let i = 0; i < 60; i++) particles.push(new Particle());
+    document.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    });
+
+    function animateParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+      requestAnimationFrame(animateParticles);
+    }
+    animateParticles();
+    // === Core Logic ===
+    function parseShipment(rawData) {
+      const seenSkus = new Set();
+      const parsed = [];
+      for (let i = 0; i < rawData.length; i++) {
+        const line = rawData[i].trim();
+        if (!line) continue;
+        const parts = line.split('|');
+        if (parts.length < 4) continue;
+        const sku = parts[0].trim();
+        if (seenSkus.has(sku)) continue;
+        seenSkus.add(sku);
+        const name = parts[1].trim();
+        const qty = Number(parts[2].trim());
+        const expires = parts[3].trim();
+        const zone = parts.length >= 5 ? parts[4].trim() : 'general';
+        parsed.push({
+          sku,
+          name,
+          qty,
+          expires,
+          zone
+        });
+      }
+      return parsed;
+    }
+
+    function planRestock(pantry, shipment) {
+      const actions = [];
+      const pantrySkus = new Set();
+      for (let i = 0; i < pantry.length; i++) {
+        pantrySkus.add(pantry[i].sku);
+      }
+      for (let i = 0; i < shipment.length; i++) {
+        const item = shipment[i];
+        if (item.qty <= 0) {
+          actions.push({
+            type: 'discard',
+            item
+          });
+        } else if (pantrySkus.has(item.sku)) {
+          actions.push({
+            type: 'restock',
+            item
+          });
+        } else {
+          actions.push({
+            type: 'donate',
+            item
+          });
+        }
+      }
+      return actions;
+    }
+
+    function groupByZone(actions) {
+      const grouped = {};
+      for (let i = 0; i < actions.length; i++) {
+        const zone = actions[i].item.zone;
+        if (!grouped[zone]) grouped[zone] = [];
+        grouped[zone].push(actions[i]);
+      }
+      return grouped;
+    }
+
+    function clonePantry(pantry) {
+      const copy = [];
+      for (let i = 0; i < pantry.length; i++) {
+        const item = pantry[i];
+        copy.push({
+          sku: item.sku,
+          name: item.name,
+          qty: item.qty,
+          expires: item.expires,
+          zone: item.zone
+        });
+      }
+      return copy;
+    }
+    // === UI Logic ===
+    function log(message, type = 'info') {
+      const consoleBody = document.getElementById('consoleBody');
+      const now = new Date();
+      const time = now.toTimeString().slice(0, 8);
+      const typeClass = type === 'error' ? 'log-error' : type === 'warn' ? 'log-warn' : 'log-info';
+      const line = document.createElement('div');
+      line.innerHTML = `<span class="log-time">[${time}]</span> <span class="${typeClass}">${message}</span>`;
+      consoleBody.appendChild(line);
+      consoleBody.scrollTop = consoleBody.scrollHeight;
+    }
+
+    function updateStats(actions) {
+      const total = actions.length;
+      const restock = actions.filter(a => a.type === 'restock').length;
+      const donate = actions.filter(a => a.type === 'donate').length;
+      const discard = actions.filter(a => a.type === 'discard').length;
+      animateNumber('statTotal', total);
+      animateNumber('statRestock', restock);
+      animateNumber('statDonate', donate);
+      animateNumber('statDiscard', discard);
+    }
+
+    function animateNumber(id, target) {
+      const el = document.getElementById(id);
+      const start = parseInt(el.textContent) || 0;
+      const diff = target - start;
+      const duration = 600;
+      const startTime = performance.now();
+
+      function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = Math.round(start + diff * eased);
+        if (progress < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    function renderActions(actions) {
+      const grouped = groupByZone(actions);
+      const container = document.getElementById('resultsBody');
+      container.innerHTML = '';
+      const zones = Object.keys(grouped);
+      for (let z = 0; z < zones.length; z++) {
+        const zone = zones[z];
+        const zoneActions = grouped[zone];
+        const section = document.createElement('div');
+        section.className = 'zone-section';
+        const header = document.createElement('div');
+        header.className = 'zone-header';
+        header.innerHTML = `
+                    <div class="zone-dot ${zone}"></div>
+                    <span class="zone-name">${zone}</span>
+                    <span class="zone-count">${zoneActions.length} item${zoneActions.length !== 1 ? 's' : ''}</span>
+                `;
+        section.appendChild(header);
+        const grid = document.createElement('div');
+        grid.className = 'actions-grid';
+        for (let i = 0; i < zoneActions.length; i++) {
+          const action = zoneActions[i];
+          const card = document.createElement('div');
+          card.className = `action-card ${action.type}`;
+          card.style.animationDelay = `${i * 0.08}s`;
+          const iconMap = {
+            discard: '&#128465;',
+            restock: '&#128260;',
+            donate: '&#127873;'
+          };
+          card.innerHTML = `
+                        <div class="action-badge ${action.type}">
+                            <span>${iconMap[action.type]}</span>
+                            <span>${action.type}</span>
+                        </div>
+                        <div class="action-sku">${action.item.sku}</div>
+                        <div class="action-name">${action.item.name}</div>
+                        <div class="action-meta">
+                            <span>&#128230; Qty: ${action.item.qty}</span>
+                            <span>&#128197; ${action.item.expires}</span>
+                        </div>
+                    `;
+          grid.appendChild(card);
+        }
+        section.appendChild(grid);
+        container.appendChild(section);
+      }
+      document.getElementById('resultsPanel').style.display = 'block';
+    }
+
+    function processShipment() {
+      try {
+        const rawLines = document.getElementById('shipmentInput').value.split('\n');
+        const pantryRaw = document.getElementById('pantryInput').value.trim();
+        const pantry = pantryRaw ? JSON.parse(pantryRaw) : [];
+        log('Parsing shipment data...', 'info');
+        const shipment = parseShipment(rawLines);
+        log(`Parsed ${shipment.length} unique items from shipment`, 'info');
+        const dupes = rawLines.length - shipment.length;
+        if (dupes > 0) log(`Ignored ${dupes} duplicate SKU(s)`, 'warn');
+        log('Cloning pantry inventory...', 'info');
+        const safePantry = clonePantry(pantry);
+        log('Planning restock actions...', 'info');
+        const actions = planRestock(safePantry, shipment);
+        log('Grouping by storage zone...', 'info');
+        const grouped = groupByZone(actions);
+        log('Rendering results...', 'info');
+        updateStats(actions);
+        renderActions(actions);
+        const zones = Object.keys(grouped);
+        log(`Complete. ${actions.length} actions across ${zones.length} zone(s).`, 'info');
+        console.log(grouped);
+      } catch (err) {
+        log('Error: ' + err.message, 'error');
+      }
+    }
+
+    function loadDemo() {
+      document.getElementById('shipmentInput').value = `A10|Tomatoes|5|2027-01-01
+B21|Bananas|10|2027-01-01|fridge
+C32|Eggs|3|2027-01-01|pantry
+D45|Expired Beans|0|2020-01-01|pantry
+A10|Duplicate Tomatoes|99|2027-12-31|fridge
+F67|Milk|2|2027-01-15|fridge
+G88|Bread|1|2027-01-05|pantry
+H99|Spoiled Yogurt|-3|2026-01-01|fridge`;
+      document.getElementById('pantryInput').value = `[
+  { "sku": "A10", "name": "Tomatoes", "qty": 2, "expires": "2026-06-01", "zone": "general" },
+  { "sku": "E99", "name": "Rice", "qty": 10, "expires": "2028-01-01", "zone": "pantry" },
+  { "sku": "F67", "name": "Milk", "qty": 1, "expires": "2026-12-31", "zone": "fridge" }
+]`;
+      log('Demo data loaded. Click Process Shipment to run.', 'warn');
+    }
+
+    function clearAll() {
+      document.getElementById('shipmentInput').value = '';
+      document.getElementById('pantryInput').value = '';
+      document.getElementById('resultsPanel').style.display = 'none';
+      document.getElementById('statTotal').textContent = '0';
+      document.getElementById('statRestock').textContent = '0';
+      document.getElementById('statDonate').textContent = '0';
+      document.getElementById('statDiscard').textContent = '0';
+      log('All fields cleared.', 'info');
+    }
+  </script>
+</body>
+
+</html>
